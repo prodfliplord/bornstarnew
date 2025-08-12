@@ -39,6 +39,10 @@ class OrderStatus(BaseModel):
     status: str  # confirmed, cancelled, not_picked, dispatched, delivered, rto
     updated_at: str
 
+class OrderNote(BaseModel):
+    order_id: str
+    note: str
+
 class Order(BaseModel):
     id: str
     order_id: str
@@ -137,7 +141,7 @@ async def shopify_webhook(request: Request):
         # Check if order already exists
         existing_order = await orders_collection.find_one({'order_id': order_doc['order_id']})
         if existing_order:
-            # Update existing order but preserve local status
+            # Update existing order but preserve local status and notes
             order_doc['local_status'] = existing_order.get('local_status', 'new')
             order_doc['status_updated_at'] = existing_order.get('status_updated_at')
             order_doc['notes'] = existing_order.get('notes', '')
@@ -209,6 +213,30 @@ async def update_order_status(order_id: str, status_data: OrderStatus):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating order status: {str(e)}")
 
+@app.put("/api/orders/{order_id}/note")
+async def update_order_note(order_id: str, note_data: OrderNote):
+    """Update order note"""
+    try:
+        update_data = {
+            'notes': note_data.note,
+            'notes_updated_at': datetime.now().isoformat()
+        }
+        
+        result = await orders_collection.update_one(
+            {'order_id': order_id},
+            {'$set': update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        return {"status": "success", "message": "Order note updated successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating order note: {str(e)}")
+
 @app.get("/api/orders/stats")
 async def get_order_stats():
     """Get order statistics by status (excluding demo orders)"""
@@ -243,6 +271,38 @@ async def clear_demo_orders():
         return {"status": "success", "message": f"Cleared {result.deleted_count} demo orders"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing demo orders: {str(e)}")
+
+@app.post("/api/orders/sync")
+async def sync_orders():
+    """Manual sync endpoint - returns current order count and stats"""
+    try:
+        # Get total orders count
+        total_orders = await orders_collection.count_documents({'order_number': {'$not': {'$regex': '^#DEMO'}}})
+        
+        # Get stats
+        pipeline = [
+            {'$match': {'order_number': {'$not': {'$regex': '^#DEMO'}}}},
+            {
+                '$group': {
+                    '_id': '$local_status',
+                    'count': {'$sum': 1}
+                }
+            }
+        ]
+        
+        cursor = orders_collection.aggregate(pipeline)
+        stats = await cursor.to_list(length=None)
+        stats_dict = {stat['_id']: stat['count'] for stat in stats}
+        
+        return {
+            "status": "success", 
+            "message": f"Synced {total_orders} orders",
+            "total_orders": total_orders,
+            "stats": stats_dict
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error syncing orders: {str(e)}")
 
 # Get product images from Shopify (requires additional API call)
 @app.get("/api/product/{product_id}/image")

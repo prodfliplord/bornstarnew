@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { Phone, Package, User, Clock, CheckCircle, XCircle, AlertCircle, Truck, ArrowRight, MapPin, CreditCard, Trash2 } from 'lucide-react';
+import { Phone, Package, User, Clock, CheckCircle, XCircle, AlertCircle, Truck, ArrowRight, MapPin, CreditCard, Trash2, RefreshCw, StickyNote, Save, Edit3 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
@@ -8,8 +8,11 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [stats, setStats] = useState({});
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteText, setNoteText] = useState('');
 
   const statusConfig = {
     new: { label: 'New', color: 'blue', icon: Clock },
@@ -79,6 +82,23 @@ function App() {
     }
   };
 
+  const syncOrders = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch(`${API_URL}/api/orders/sync`, { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Sync result:', data);
+        await fetchOrders();
+        await fetchStats();
+      }
+    } catch (error) {
+      console.error('Error syncing orders:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const filterOrders = () => {
     if (activeTab === 'all') {
       setFilteredOrders(orders);
@@ -109,6 +129,31 @@ function App() {
       }
     } catch (error) {
       console.error('Error updating order status:', error);
+    }
+  };
+
+  const updateOrderNote = async (orderId, note) => {
+    try {
+      const response = await fetch(`${API_URL}/api/orders/${orderId}/note`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order_id: orderId,
+          note: note
+        }),
+      });
+
+      if (response.ok) {
+        await fetchOrders();
+        setEditingNote(null);
+        setNoteText('');
+      } else {
+        console.error('Failed to update order note');
+      }
+    } catch (error) {
+      console.error('Error updating order note:', error);
     }
   };
 
@@ -151,6 +196,20 @@ function App() {
     );
   };
 
+  const startEditingNote = (orderId, currentNote) => {
+    setEditingNote(orderId);
+    setNoteText(currentNote || '');
+  };
+
+  const saveNote = (orderId) => {
+    updateOrderNote(orderId, noteText);
+  };
+
+  const cancelEditingNote = () => {
+    setEditingNote(null);
+    setNoteText('');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
@@ -171,6 +230,17 @@ function App() {
             <div className="flex items-center space-x-3">
               <Package className="w-8 h-8 text-blue-400" />
               <h1 className="text-xl font-bold text-white">Shopify Orders CRM</h1>
+              
+              {/* Sync Orders Button */}
+              <button
+                onClick={syncOrders}
+                disabled={syncing}
+                className="sync-button"
+                title="Sync Orders"
+              >
+                <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{syncing ? 'Syncing...' : 'Sync Orders'}</span>
+              </button>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-300">
@@ -242,6 +312,7 @@ function App() {
             {filteredOrders.map((order) => {
               const StatusIcon = statusConfig[order.local_status]?.icon || Clock;
               const statusInfo = statusConfig[order.local_status];
+              const isEditingThis = editingNote === order.order_id;
               
               return (
                 <div key={order.id} className="order-card">
@@ -326,6 +397,60 @@ function App() {
                     <span className="text-green-400 font-bold">
                       {formatPrice(order.total_price, order.currency)}
                     </span>
+                  </div>
+
+                  {/* Notes Section */}
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <StickyNote className="w-4 h-4 text-yellow-400" />
+                        <span className="text-sm text-gray-300">Notes</span>
+                      </div>
+                      {!isEditingThis && (
+                        <button
+                          onClick={() => startEditingNote(order.order_id, order.notes)}
+                          className="text-gray-400 hover:text-yellow-400 transition-colors"
+                          title="Edit Note"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    {isEditingThis ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={noteText}
+                          onChange={(e) => setNoteText(e.target.value)}
+                          placeholder="Add a note for this order..."
+                          className="note-textarea"
+                          rows="3"
+                        />
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => saveNote(order.order_id)}
+                            className="note-save-button"
+                          >
+                            <Save className="w-3 h-3" />
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEditingNote}
+                            className="note-cancel-button"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="note-display">
+                        {order.notes ? (
+                          <p className="text-sm text-gray-300">{order.notes}</p>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">No notes added</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Status Action Buttons */}

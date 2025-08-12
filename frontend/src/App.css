@@ -35,6 +35,34 @@ body {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
+/* Sync Orders Button */
+.sync-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  color: #60a5fa;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.sync-button:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.sync-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Navigation tabs */
 .nav-tab {
   display: flex;
@@ -276,6 +304,81 @@ body {
   flex-shrink: 0;
 }
 
+/* Notes Section */
+.note-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: white;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+  transition: border-color 0.2s ease;
+}
+
+.note-textarea:focus {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.note-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.note-save-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.note-save-button:hover {
+  background: rgba(245, 158, 11, 0.3);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.note-cancel-button {
+  padding: 6px 12px;
+  background: rgba(107, 114, 128, 0.2);
+  border: 1px solid rgba(107, 114, 128, 0.3);
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.note-cancel-button:hover {
+  background: rgba(107, 114, 128, 0.3);
+  border-color: rgba(107, 114, 128, 0.4);
+}
+
+.note-display {
+  min-height: 40px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.note-display:hover {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
 /* Status action buttons */
 .status-action-button {
   display: flex;
@@ -339,6 +442,10 @@ body {
     padding: 8px 12px;
     font-size: 13px;
   }
+  
+  .sync-button span {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -382,7 +489,8 @@ html {
 /* Focus states */
 .nav-tab:focus,
 .status-action-button:focus,
-.phone-button:focus {
+.phone-button:focus,
+.sync-button:focus {
   outline: 2px solid rgba(59, 130, 246, 0.5);
   outline-offset: 2px;
 }
@@ -402,10 +510,19 @@ html {
   .nav-tab {
     min-height: 44px;
   }
+  
+  .sync-button {
+    min-height: 44px;
+  }
 }
 
 /* Address text styling */
 .address-text {
   line-height: 1.4;
   word-break: break-word;
+}
+
+/* Animation for sync button */
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
