@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { Phone, Package, User, Clock, CheckCircle, XCircle, AlertCircle, Truck, ArrowRight, MapPin, CreditCard, Trash2, RefreshCw, StickyNote, Save, Edit3 } from 'lucide-react';
+import { Phone, Package, User, Clock, CheckCircle, XCircle, AlertCircle, Truck, ArrowRight, MapPin, CreditCard, Trash2, RefreshCw, StickyNote, Save, Edit3, Download } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
@@ -14,6 +14,8 @@ function App() {
   const [editingNote, setEditingNote] = useState(null);
   const [noteText, setNoteText] = useState('');
   const [deletingOrder, setDeletingOrder] = useState(null);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   const statusConfig = {
     new: { label: 'New', color: 'blue', icon: Clock },
@@ -37,14 +39,42 @@ function App() {
   ];
 
   useEffect(() => {
+    // PWA Install prompt detection
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    // Check if app is already installed
+    const checkInstalled = () => {
+      if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+        setIsInstalled(true);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    checkInstalled();
+
     // clearDemoData(); // Commented out - only clear manually
     fetchOrders();
     fetchStats();
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
 
   useEffect(() => {
     filterOrders();
   }, [orders, activeTab]);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    
+    const result = await installPrompt.prompt();
+    console.log('Install prompt result:', result);
+    setInstallPrompt(null);
+  };
 
   const clearDemoData = async () => {
     try {
@@ -253,6 +283,24 @@ function App() {
 
   return (
     <div className="min-h-screen bg-black">
+      {/* PWA Install Banner */}
+      {installPrompt && !isInstalled && (
+        <div className="pwa-install-banner">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center space-x-3">
+              <Download className="w-6 h-6 text-blue-400" />
+              <div>
+                <p className="text-white font-semibold">Install Bornstar Orders App</p>
+                <p className="text-gray-400 text-sm">Add to your home screen for quick access</p>
+              </div>
+            </div>
+            <button onClick={handleInstallClick} className="install-button">
+              Install
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-50 glass-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -276,6 +324,15 @@ function App() {
               <div className="text-sm text-gray-300">
                 Total Orders: <span className="font-semibold text-white">{orders.length}</span>
               </div>
+              {installPrompt && !isInstalled && (
+                <button
+                  onClick={handleInstallClick}
+                  className="install-header-button"
+                  title="Install App"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+              )}
               <button
                 onClick={() => {
                   clearDemoData();
