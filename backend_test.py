@@ -321,6 +321,42 @@ def main():
     # Test 8: Shopify webhook
     tester.test_shopify_webhook()
     
+    # Test 9: DELETE FUNCTIONALITY TESTS
+    print("\n🗑️  TESTING DELETE FUNCTIONALITY")
+    print("-" * 30)
+    
+    # Create a test order specifically for deletion
+    test_order_id = tester.test_create_test_order_for_deletion()
+    
+    if test_order_id:
+        print(f"✅ Created test order for deletion: {test_order_id}")
+        
+        # Test deleting the order
+        delete_success, _ = tester.test_delete_order(test_order_id)
+        
+        if delete_success:
+            print("✅ Delete order test passed")
+            
+            # Verify order is actually deleted by trying to get it
+            orders_success, orders_data = tester.test_get_orders()
+            if orders_success:
+                remaining_orders = orders_data.get('orders', [])
+                deleted_order_found = any(order['order_id'] == test_order_id for order in remaining_orders)
+                
+                if not deleted_order_found:
+                    print("✅ Order successfully removed from database")
+                    tester.tests_passed += 1
+                else:
+                    print("❌ Order still exists in database after deletion")
+                tester.tests_run += 1
+        else:
+            print("❌ Delete order test failed")
+    else:
+        print("❌ Could not create test order for deletion")
+    
+    # Test deleting non-existent order
+    tester.test_delete_nonexistent_order()
+    
     # Print final results
     print("\n" + "=" * 50)
     print(f"📊 Final Results: {tester.tests_passed}/{tester.tests_run} tests passed")
