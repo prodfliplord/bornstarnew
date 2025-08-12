@@ -267,7 +267,7 @@ async def get_order_stats():
 async def clear_demo_orders():
     """Clear all demo orders"""
     try:
-        result = await orders_collection.delete_many({'order_number': {'$regex': '^#DEMO'}})
+        result = await orders_collection.delete_many({'order_number': {'$regex': '^#DEMO\\d+$'}})
         return {"status": "success", "message": f"Cleared {result.deleted_count} demo orders"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing demo orders: {str(e)}")
