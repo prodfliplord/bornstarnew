@@ -13,6 +13,7 @@ function App() {
   const [stats, setStats] = useState({});
   const [editingNote, setEditingNote] = useState(null);
   const [noteText, setNoteText] = useState('');
+  const [deletingOrder, setDeletingOrder] = useState(null);
 
   const statusConfig = {
     new: { label: 'New', color: 'blue', icon: Clock },
@@ -132,6 +133,32 @@ function App() {
     }
   };
 
+  const deleteOrder = async (orderId) => {
+    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingOrder(orderId);
+    try {
+      const response = await fetch(`${API_URL}/api/orders/${orderId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchOrders();
+        await fetchStats();
+      } else {
+        console.error('Failed to delete order');
+        alert('Failed to delete order. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      alert('Error deleting order. Please try again.');
+    } finally {
+      setDeletingOrder(null);
+    }
+  };
+
   const updateOrderNote = async (orderId, note) => {
     try {
       const response = await fetch(`${API_URL}/api/orders/${orderId}/note`, {
@@ -212,7 +239,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="glass-card p-8 text-center">
           <div className="loading-spinner"></div>
           <p className="text-white mt-4">Loading orders...</p>
@@ -222,14 +249,14 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-black">
       {/* Header */}
       <header className="sticky top-0 z-50 glass-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <Package className="w-8 h-8 text-blue-400" />
-              <h1 className="text-xl font-bold text-white">Shopify Orders CRM</h1>
+              <h1 className="text-xl font-bold text-white">Bornstar Orders</h1>
               
               {/* Sync Orders Button */}
               <button
@@ -244,7 +271,7 @@ function App() {
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-300">
-                Real Orders: <span className="font-semibold text-white">{orders.length}</span>
+                Total Orders: <span className="font-semibold text-white">{orders.length}</span>
               </div>
               <button
                 onClick={() => {
@@ -313,18 +340,29 @@ function App() {
               const StatusIcon = statusConfig[order.local_status]?.icon || Clock;
               const statusInfo = statusConfig[order.local_status];
               const isEditingThis = editingNote === order.order_id;
+              const isDeletingThis = deletingOrder === order.order_id;
               
               return (
                 <div key={order.id} className="order-card">
-                  {/* Order Header */}
+                  {/* Order Header with Delete Button */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-2">
                       <Package className="w-5 h-5 text-blue-400" />
                       <span className="font-semibold text-white">{order.order_number}</span>
                     </div>
-                    <div className={`status-badge status-${statusInfo?.color || 'gray'}`}>
-                      <StatusIcon className="w-4 h-4" />
-                      <span>{statusInfo?.label || 'Unknown'}</span>
+                    <div className="flex items-center space-x-2">
+                      <div className={`status-badge status-${statusInfo?.color || 'gray'}`}>
+                        <StatusIcon className="w-4 h-4" />
+                        <span>{statusInfo?.label || 'Unknown'}</span>
+                      </div>
+                      <button
+                        onClick={() => deleteOrder(order.order_id)}
+                        disabled={isDeletingThis}
+                        className="delete-button"
+                        title="Delete Order"
+                      >
+                        <Trash2 className={`w-4 h-4 ${isDeletingThis ? 'animate-spin' : ''}`} />
+                      </button>
                     </div>
                   </div>
 
@@ -492,6 +530,21 @@ function App() {
                         </button>
                       </>
                     )}
+
+                    {order.local_status === 'cancelled' && (
+                      <>
+                        <button
+                          onClick={() => updateOrderStatus(order.order_id, 'confirmed')}
+                          className="status-action-button bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Re-Confirm
+                        </button>
+                        <div className="col-span-1 text-center py-2 text-red-400 text-sm">
+                          Order Cancelled
+                        </div>
+                      </>
+                    )}
                     
                     {order.local_status === 'dispatched' && (
                       <>
@@ -512,7 +565,26 @@ function App() {
                       </>
                     )}
                     
-                    {(order.local_status === 'delivered' || order.local_status === 'cancelled' || order.local_status === 'rto') && (
+                    {order.local_status === 'not_picked' && (
+                      <>
+                        <button
+                          onClick={() => updateOrderStatus(order.order_id, 'confirmed')}
+                          className="status-action-button bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Re-Confirm
+                        </button>
+                        <button
+                          onClick={() => updateOrderStatus(order.order_id, 'cancelled')}
+                          className="status-action-button bg-red-600 hover:bg-red-700"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                    
+                    {(order.local_status === 'delivered' || order.local_status === 'rto') && (
                       <div className="col-span-2 text-center py-2 text-gray-400 text-sm">
                         Order {statusInfo?.label}
                       </div>

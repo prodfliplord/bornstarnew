@@ -10,29 +10,29 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0f172a;
+  background: #000000;
   overflow-x: hidden;
 }
 
-/* Glass morphism effects */
+/* Glass morphism effects with black background */
 .glass-header {
   backdrop-filter: blur(20px);
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(0, 0, 0, 0.8);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .glass-nav {
   backdrop-filter: blur(16px);
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(0, 0, 0, 0.7);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .glass-card {
   backdrop-filter: blur(16px);
-  background: rgba(30, 41, 59, 0.6);
+  background: rgba(20, 20, 20, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 /* Sync Orders Button */
@@ -59,6 +59,32 @@ body {
 }
 
 .sync-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Delete Button */
+.delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #f87171;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.delete-button:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  transform: translateY(-1px);
+}
+
+.delete-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -147,22 +173,22 @@ body {
   text-align: center;
 }
 
-/* Order cards */
+/* Order cards with black theme */
 .order-card {
   backdrop-filter: blur(16px);
-  background: rgba(30, 41, 59, 0.6);
+  background: rgba(20, 20, 20, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
   padding: 24px;
   transition: all 0.3s ease;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
   position: relative;
   overflow: hidden;
 }
 
 .order-card:hover {
   transform: translateY(-8px);
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -307,7 +333,7 @@ body {
 /* Notes Section */
 .note-textarea {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 8px 12px;
@@ -368,14 +394,14 @@ body {
 .note-display {
   min-height: 40px;
   padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   transition: all 0.2s ease;
 }
 
 .note-display:hover {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.4);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -399,7 +425,7 @@ body {
 
 .status-action-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
 }
 
 .status-action-button:active {
@@ -464,7 +490,7 @@ body {
   }
 }
 
-/* Apple-like blur effects */
+/* Apple-like blur effects with black theme */
 @supports (backdrop-filter: blur(20px)) {
   .glass-header,
   .glass-nav,
@@ -490,7 +516,8 @@ html {
 .nav-tab:focus,
 .status-action-button:focus,
 .phone-button:focus,
-.sync-button:focus {
+.sync-button:focus,
+.delete-button:focus {
   outline: 2px solid rgba(59, 130, 246, 0.5);
   outline-offset: 2px;
 }
@@ -514,6 +541,11 @@ html {
   .sync-button {
     min-height: 44px;
   }
+  
+  .delete-button {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* Address text styling */
@@ -522,7 +554,7 @@ html {
   word-break: break-word;
 }
 
-/* Animation for sync button */
+/* Animation for sync button and delete button */
 .animate-spin {
   animation: spin 1s linear infinite;
 }

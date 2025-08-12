@@ -12,7 +12,7 @@ import json
 from dotenv import load_dotenv
 load_dotenv()
 
-app = FastAPI(title="Shopify Orders CRM API")
+app = FastAPI(title="Bornstar Orders CRM API")
 
 # CORS middleware
 app.add_middleware(
@@ -66,7 +66,7 @@ class Order(BaseModel):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "Shopify Orders CRM API"}
+    return {"status": "healthy", "service": "Bornstar Orders CRM API"}
 
 @app.post("/api/webhook/shopify")
 async def shopify_webhook(request: Request):
@@ -170,7 +170,7 @@ async def get_orders(status: Optional[str] = None):
         if status:
             query['local_status'] = status
         
-        # Exclude demo orders (only demo orders that start with #DEMO)
+        # Exclude only demo orders that start with #DEMO followed by digits
         query['order_number'] = {'$not': {'$regex': '^#DEMO\\d+$'}}
         
         cursor = orders_collection.find(query).sort('created_at', -1)
@@ -236,6 +236,22 @@ async def update_order_note(order_id: str, note_data: OrderNote):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating order note: {str(e)}")
+
+@app.delete("/api/orders/{order_id}")
+async def delete_order(order_id: str):
+    """Delete an order"""
+    try:
+        result = await orders_collection.delete_one({'order_id': order_id})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        return {"status": "success", "message": "Order deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting order: {str(e)}")
 
 @app.get("/api/orders/stats")
 async def get_order_stats():
