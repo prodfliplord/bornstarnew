@@ -170,8 +170,8 @@ async def get_orders(status: Optional[str] = None):
         if status:
             query['local_status'] = status
         
-        # Exclude demo orders
-        query['order_number'] = {'$not': {'$regex': '^#DEMO'}}
+        # Exclude demo orders (only demo orders that start with #DEMO)
+        query['order_number'] = {'$not': {'$regex': '^#DEMO\\d+$'}}
         
         cursor = orders_collection.find(query).sort('created_at', -1)
         orders = await cursor.to_list(length=100)
