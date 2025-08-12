@@ -242,8 +242,8 @@ async def get_order_stats():
     """Get order statistics by status (excluding demo orders)"""
     try:
         pipeline = [
-            # Exclude demo orders
-            {'$match': {'order_number': {'$not': {'$regex': '^#DEMO'}}}},
+            # Exclude only demo orders that start with #DEMO followed by digits
+            {'$match': {'order_number': {'$not': {'$regex': '^#DEMO\\d+$'}}}},
             {
                 '$group': {
                     '_id': '$local_status',
