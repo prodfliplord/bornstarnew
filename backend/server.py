@@ -257,6 +257,8 @@ async def create_demo_order():
     }
     
     await orders_collection.insert_one(demo_order)
+    # Remove MongoDB ObjectId for JSON serialization
+    demo_order.pop('_id', None)
     return {"status": "success", "message": "Demo order created", "order": demo_order}
 
 if __name__ == "__main__":
