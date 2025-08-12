@@ -277,7 +277,7 @@ async def sync_orders():
     """Manual sync endpoint - returns current order count and stats"""
     try:
         # Get total orders count
-        total_orders = await orders_collection.count_documents({'order_number': {'$not': {'$regex': '^#DEMO'}}})
+        total_orders = await orders_collection.count_documents({'order_number': {'$not': {'$regex': '^#DEMO\\d+$'}}})
         
         # Get stats
         pipeline = [
