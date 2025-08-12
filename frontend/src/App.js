@@ -36,7 +36,7 @@ function App() {
   ];
 
   useEffect(() => {
-    clearDemoData();
+    // clearDemoData(); // Commented out - only clear manually
     fetchOrders();
     fetchStats();
   }, []);
