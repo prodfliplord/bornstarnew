@@ -200,6 +200,89 @@ class ShopifyCRMAPITester:
             data=data
         )
 
+    def test_delete_order(self, order_id):
+        """Test deleting an order"""
+        return self.run_test(
+            "Delete Order",
+            "DELETE",
+            f"api/orders/{order_id}",
+            200
+        )
+
+    def test_delete_nonexistent_order(self):
+        """Test deleting a non-existent order"""
+        fake_order_id = f"fake_{int(datetime.now().timestamp())}"
+        return self.run_test(
+            "Delete Non-existent Order",
+            "DELETE",
+            f"api/orders/{fake_order_id}",
+            404
+        )
+
+    def test_create_test_order_for_deletion(self):
+        """Create a test order specifically for deletion testing"""
+        test_webhook_data = {
+            "id": int(datetime.now().timestamp()),
+            "name": "#DELETE_TEST",
+            "email": "delete_test@example.com",
+            "phone": "+91 99999 99999",
+            "created_at": datetime.now().isoformat(),
+            "current_total_price": "999.00",
+            "currency": "INR",
+            "financial_status": "pending",
+            "fulfillment_status": None,
+            "payment_gateway_names": ["COD"],
+            "customer": {
+                "first_name": "Delete",
+                "last_name": "Test",
+                "email": "delete_test@example.com"
+            },
+            "billing_address": {
+                "first_name": "Delete",
+                "last_name": "Test",
+                "phone": "+91 99999 99999",
+                "address1": "Test Address",
+                "city": "Test City",
+                "province": "Test State",
+                "country": "India",
+                "zip": "123456"
+            },
+            "shipping_address": {
+                "first_name": "Delete",
+                "last_name": "Test",
+                "phone": "+91 99999 99999",
+                "address1": "Test Address",
+                "city": "Test City",
+                "province": "Test State",
+                "country": "India",
+                "zip": "123456"
+            },
+            "line_items": [
+                {
+                    "id": 123456789,
+                    "title": "Test Product for Deletion",
+                    "variant_title": "L",
+                    "quantity": 1,
+                    "price": "999.00",
+                    "vendor": "Test Store",
+                    "product_id": 111,
+                    "variant_id": 222
+                }
+            ]
+        }
+        
+        success, response = self.run_test(
+            "Create Test Order for Deletion",
+            "POST",
+            "api/webhook/shopify",
+            200,
+            data=test_webhook_data
+        )
+        
+        if success and 'order_id' in response:
+            return response['order_id']
+        return None
+
 def main():
     print("🚀 Starting Shopify Orders CRM API Tests")
     print("=" * 50)
