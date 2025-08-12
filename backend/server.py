@@ -51,6 +51,7 @@ class Order(BaseModel):
     currency: str
     financial_status: str
     fulfillment_status: Optional[str]
+    payment_method: Optional[str]
     billing_address: Dict[str, Any]
     shipping_address: Dict[str, Any]
     created_at: str
@@ -81,18 +82,34 @@ async def shopify_webhook(request: Request):
         billing_address = order_data.get('billing_address', {})
         phone = billing_address.get('phone') or order_data.get('phone', '')
         
-        # Parse line items (products)
+        # Determine payment method
+        payment_gateways = order_data.get('payment_gateway_names', [])
+        payment_method = "COD" if any("COD" in gateway.upper() or "CASH ON DELIVERY" in gateway.upper() for gateway in payment_gateways) else "Prepaid"
+        
+        # Parse line items (products) with images
         line_items = order_data.get('line_items', [])
         products = []
         for item in line_items:
-            products.append({
+            product_data = {
                 'id': item.get('id'),
                 'title': item.get('title'),
                 'variant_title': item.get('variant_title'),
                 'quantity': item.get('quantity'),
                 'price': item.get('price'),
-                'vendor': item.get('vendor')
-            })
+                'vendor': item.get('vendor'),
+                'product_id': item.get('product_id'),
+                'variant_id': item.get('variant_id')
+            }
+            products.append(product_data)
+        
+        # Enhanced billing address
+        enhanced_billing = billing_address.copy()
+        enhanced_billing['full_address'] = f"{billing_address.get('address1', '')} {billing_address.get('address2', '')}".strip()
+        
+        # Enhanced shipping address
+        shipping_address = order_data.get('shipping_address', {})
+        enhanced_shipping = shipping_address.copy()
+        enhanced_shipping['full_address'] = f"{shipping_address.get('address1', '')} {shipping_address.get('address2', '')}".strip()
         
         # Create order document
         order_doc = {
@@ -107,8 +124,9 @@ async def shopify_webhook(request: Request):
             'currency': order_data.get('currency', 'INR'),
             'financial_status': order_data.get('financial_status', ''),
             'fulfillment_status': order_data.get('fulfillment_status'),
-            'billing_address': billing_address,
-            'shipping_address': order_data.get('shipping_address', {}),
+            'payment_method': payment_method,
+            'billing_address': enhanced_billing,
+            'shipping_address': enhanced_shipping,
             'created_at': order_data.get('created_at', datetime.now().isoformat()),
             'local_status': 'new',
             'status_updated_at': None,
@@ -132,6 +150,8 @@ async def shopify_webhook(request: Request):
             # Insert new order
             await orders_collection.insert_one(order_doc)
         
+        print(f"✅ Processed order: {order_doc['order_number']} for {customer_name}")
+        
         return {"status": "success", "message": "Order processed successfully", "order_id": order_doc['order_id']}
         
     except Exception as e:
@@ -145,6 +165,9 @@ async def get_orders(status: Optional[str] = None):
         query = {}
         if status:
             query['local_status'] = status
+        
+        # Exclude demo orders
+        query['order_number'] = {'$not': {'$regex': '^#DEMO'}}
         
         cursor = orders_collection.find(query).sort('created_at', -1)
         orders = await cursor.to_list(length=100)
@@ -188,9 +211,11 @@ async def update_order_status(order_id: str, status_data: OrderStatus):
 
 @app.get("/api/orders/stats")
 async def get_order_stats():
-    """Get order statistics by status"""
+    """Get order statistics by status (excluding demo orders)"""
     try:
         pipeline = [
+            # Exclude demo orders
+            {'$match': {'order_number': {'$not': {'$regex': '^#DEMO'}}}},
             {
                 '$group': {
                     '_id': '$local_status',
@@ -210,56 +235,22 @@ async def get_order_stats():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching order stats: {str(e)}")
 
-@app.post("/api/orders/demo")
-async def create_demo_order():
-    """Create a demo order for testing"""
-    demo_order = {
-        'id': str(uuid.uuid4()),
-        'order_id': f"demo_{int(datetime.now().timestamp())}",
-        'order_number': f"#DEMO{int(datetime.now().timestamp()) % 10000}",
-        'customer_name': 'John Doe',
-        'phone': '+91 98765 43210',
-        'email': 'john.doe@example.com',
-        'products': [
-            {
-                'id': 'demo_product_1',
-                'title': 'Demo Premium T-Shirt',
-                'variant_title': 'L',
-                'quantity': 2,
-                'price': '999.00',
-                'vendor': 'DEMO STORE'
-            }
-        ],
-        'total_price': '2097.00',
-        'currency': 'INR',
-        'financial_status': 'pending',
-        'fulfillment_status': None,
-        'billing_address': {
-            'first_name': 'John',
-            'last_name': 'Doe',
-            'phone': '+91 98765 43210',
-            'city': 'Mumbai',
-            'province': 'Maharashtra',
-            'country': 'India'
-        },
-        'shipping_address': {
-            'first_name': 'John',
-            'last_name': 'Doe',
-            'phone': '+91 98765 43210',
-            'city': 'Mumbai',
-            'province': 'Maharashtra',
-            'country': 'India'
-        },
-        'created_at': datetime.now().isoformat(),
-        'local_status': 'new',
-        'status_updated_at': None,
-        'notes': ''
-    }
-    
-    await orders_collection.insert_one(demo_order)
-    # Remove MongoDB ObjectId for JSON serialization
-    demo_order.pop('_id', None)
-    return {"status": "success", "message": "Demo order created", "order": demo_order}
+@app.delete("/api/orders/demo/clear")
+async def clear_demo_orders():
+    """Clear all demo orders"""
+    try:
+        result = await orders_collection.delete_many({'order_number': {'$regex': '^#DEMO'}})
+        return {"status": "success", "message": f"Cleared {result.deleted_count} demo orders"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing demo orders: {str(e)}")
+
+# Get product images from Shopify (requires additional API call)
+@app.get("/api/product/{product_id}/image")
+async def get_product_image(product_id: str):
+    """Get product image URL - placeholder endpoint"""
+    # This would require Shopify Admin API access
+    # For now, return a placeholder
+    return {"image_url": f"https://via.placeholder.com/150x150?text=Product+{product_id}"}
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { Phone, Package, User, Clock, CheckCircle, XCircle, AlertCircle, Truck, ArrowRight } from 'lucide-react';
+import { Phone, Package, User, Clock, CheckCircle, XCircle, AlertCircle, Truck, ArrowRight, MapPin, CreditCard, Trash2 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
@@ -33,15 +33,23 @@ function App() {
   ];
 
   useEffect(() => {
+    clearDemoData();
     fetchOrders();
     fetchStats();
-    // Create a demo order for testing if no orders exist
-    createDemoOrder();
   }, []);
 
   useEffect(() => {
     filterOrders();
   }, [orders, activeTab]);
+
+  const clearDemoData = async () => {
+    try {
+      await fetch(`${API_URL}/api/orders/demo/clear`, { method: 'DELETE' });
+      console.log('Demo data cleared');
+    } catch (error) {
+      console.error('Error clearing demo data:', error);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -68,14 +76,6 @@ function App() {
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
-    }
-  };
-
-  const createDemoOrder = async () => {
-    try {
-      await fetch(`${API_URL}/api/orders/demo`, { method: 'POST' });
-    } catch (error) {
-      console.error('Error creating demo order:', error);
     }
   };
 
@@ -129,6 +129,28 @@ function App() {
     return stats[status] || 0;
   };
 
+  const formatAddress = (address) => {
+    if (!address) return 'Address not available';
+    const parts = [
+      address.full_address,
+      address.city,
+      address.province,
+      address.zip,
+      address.country
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  const getPaymentMethodBadge = (method) => {
+    const isCOD = method && method.toUpperCase().includes('COD');
+    return (
+      <div className={`payment-badge ${isCOD ? 'payment-cod' : 'payment-prepaid'}`}>
+        <CreditCard className="w-3 h-3" />
+        <span>{isCOD ? 'COD' : 'Prepaid'}</span>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
@@ -152,8 +174,19 @@ function App() {
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-300">
-                Total: <span className="font-semibold text-white">{orders.length}</span>
+                Real Orders: <span className="font-semibold text-white">{orders.length}</span>
               </div>
+              <button
+                onClick={() => {
+                  clearDemoData();
+                  fetchOrders();
+                  fetchStats();
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Refresh Orders"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
@@ -184,10 +217,25 @@ function App() {
         {filteredOrders.length === 0 ? (
           <div className="text-center py-16">
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-white mb-2">No orders found</h3>
+            <h3 className="text-lg font-medium text-white mb-2">
+              {orders.length === 0 ? 'Waiting for first order' : 'No orders found'}
+            </h3>
             <p className="text-gray-400">
-              {activeTab === 'all' ? 'No orders available.' : `No ${activeTab} orders found.`}
+              {orders.length === 0 
+                ? 'Your Shopify webhook is connected! New orders will appear here automatically.'
+                : activeTab === 'all' ? 'No orders available.' : `No ${activeTab} orders found.`
+              }
             </p>
+            {orders.length === 0 && (
+              <div className="mt-6 p-4 bg-blue-500/20 border border-blue-500/30 rounded-lg max-w-md mx-auto">
+                <p className="text-blue-300 text-sm">
+                  📢 Webhook URL: <br />
+                  <code className="text-xs bg-black/30 px-2 py-1 rounded">
+                    {window.location.origin}/api/webhook/shopify
+                  </code>
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -227,21 +275,43 @@ function App() {
                         </button>
                       </div>
                     )}
+
+                    {/* Payment Method */}
+                    <div className="flex items-center space-x-3">
+                      {getPaymentMethodBadge(order.payment_method)}
+                    </div>
+                  </div>
+
+                  {/* Customer Address */}
+                  <div className="mb-6">
+                    <div className="flex items-start space-x-3">
+                      <MapPin className="w-5 h-5 text-purple-400 mt-1 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm text-gray-300 leading-relaxed">
+                          {formatAddress(order.shipping_address)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Products */}
                   <div className="space-y-2 mb-6">
                     {order.products.slice(0, 2).map((product, index) => (
                       <div key={index} className="product-item">
-                        <div className="flex-1">
-                          <p className="text-white font-medium text-sm">{product.title}</p>
-                          {product.variant_title && (
-                            <p className="text-gray-400 text-xs">Size: {product.variant_title}</p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-white text-sm">Qty: {product.quantity}</p>
-                          <p className="text-green-400 text-xs">{formatPrice(product.price)}</p>
+                        <div className="flex items-center space-x-3">
+                          <div className="product-image-placeholder">
+                            <Package className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-white font-medium text-sm">{product.title}</p>
+                            {product.variant_title && (
+                              <p className="text-gray-400 text-xs">Size: {product.variant_title}</p>
+                            )}
+                            <p className="text-gray-400 text-xs">Qty: {product.quantity}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-green-400 text-sm">{formatPrice(product.price)}</p>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -327,7 +397,7 @@ function App() {
                   {/* Order Date */}
                   <div className="mt-4 pt-4 border-t border-gray-700/50">
                     <p className="text-gray-400 text-xs">
-                      Created: {new Date(order.created_at).toLocaleDateString('en-IN')}
+                      Created: {new Date(order.created_at).toLocaleDateString('en-IN')} {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>

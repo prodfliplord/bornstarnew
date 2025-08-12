@@ -209,6 +209,31 @@ body {
   border: 1px solid rgba(107, 114, 128, 0.3);
 }
 
+/* Payment method badges */
+.payment-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.payment-cod {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.payment-prepaid {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
 /* Phone button */
 .phone-button {
   color: #34d399;
@@ -228,9 +253,6 @@ body {
 
 /* Product items */
 .product-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
   padding: 12px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
@@ -241,6 +263,17 @@ body {
 .product-item:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+.product-image-placeholder {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 /* Status action buttons */
@@ -369,4 +402,10 @@ html {
   .nav-tab {
     min-height: 44px;
   }
+}
+
+/* Address text styling */
+.address-text {
+  line-height: 1.4;
+  word-break: break-word;
 }
