@@ -1,75 +1,264 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, List, Any, Dict
 import os
-import logging
-from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List
+from motor.motor_asyncio import AsyncIOMotorClient
 import uuid
 from datetime import datetime
+import json
 
+# Environment setup
+from dotenv import load_dotenv
+load_dotenv()
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+app = FastAPI(title="Shopify Orders CRM API")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
-
-
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
-
-# Include the router in the main app
-app.include_router(api_router)
-
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# MongoDB connection
+MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+client = AsyncIOMotorClient(MONGO_URL)
+db = client.shopify_crm
+orders_collection = db.orders
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+# Pydantic models
+class ShopifyWebhook(BaseModel):
+    headers: Dict[str, Any]
+    body: Dict[str, Any]
+
+class OrderStatus(BaseModel):
+    order_id: str
+    status: str  # confirmed, cancelled, not_picked, dispatched, delivered, rto
+    updated_at: str
+
+class Order(BaseModel):
+    id: str
+    order_id: str
+    order_number: str
+    customer_name: str
+    phone: str
+    email: str
+    products: List[Dict[str, Any]]
+    total_price: str
+    currency: str
+    financial_status: str
+    fulfillment_status: Optional[str]
+    billing_address: Dict[str, Any]
+    shipping_address: Dict[str, Any]
+    created_at: str
+    # Local status management
+    local_status: str = "new"  # new, confirmed, cancelled, not_picked, dispatched, delivered, rto
+    status_updated_at: Optional[str] = None
+    notes: Optional[str] = None
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy", "service": "Shopify Orders CRM API"}
+
+@app.post("/api/webhook/shopify")
+async def shopify_webhook(request: Request):
+    """Receive Shopify order webhook and store order data"""
+    try:
+        # Get the raw JSON data
+        webhook_data = await request.json()
+        
+        # Extract order information from webhook body
+        order_data = webhook_data
+        
+        # Parse customer information
+        customer = order_data.get('customer', {})
+        customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
+        
+        # Parse billing address for phone
+        billing_address = order_data.get('billing_address', {})
+        phone = billing_address.get('phone') or order_data.get('phone', '')
+        
+        # Parse line items (products)
+        line_items = order_data.get('line_items', [])
+        products = []
+        for item in line_items:
+            products.append({
+                'id': item.get('id'),
+                'title': item.get('title'),
+                'variant_title': item.get('variant_title'),
+                'quantity': item.get('quantity'),
+                'price': item.get('price'),
+                'vendor': item.get('vendor')
+            })
+        
+        # Create order document
+        order_doc = {
+            'id': str(uuid.uuid4()),
+            'order_id': str(order_data.get('id')),
+            'order_number': order_data.get('name', ''),  # This is like #2314
+            'customer_name': customer_name,
+            'phone': phone,
+            'email': order_data.get('email') or customer.get('email', ''),
+            'products': products,
+            'total_price': order_data.get('current_total_price', '0'),
+            'currency': order_data.get('currency', 'INR'),
+            'financial_status': order_data.get('financial_status', ''),
+            'fulfillment_status': order_data.get('fulfillment_status'),
+            'billing_address': billing_address,
+            'shipping_address': order_data.get('shipping_address', {}),
+            'created_at': order_data.get('created_at', datetime.now().isoformat()),
+            'local_status': 'new',
+            'status_updated_at': None,
+            'notes': '',
+            'webhook_data': order_data  # Store original webhook data for reference
+        }
+        
+        # Check if order already exists
+        existing_order = await orders_collection.find_one({'order_id': order_doc['order_id']})
+        if existing_order:
+            # Update existing order but preserve local status
+            order_doc['local_status'] = existing_order.get('local_status', 'new')
+            order_doc['status_updated_at'] = existing_order.get('status_updated_at')
+            order_doc['notes'] = existing_order.get('notes', '')
+            
+            await orders_collection.replace_one(
+                {'order_id': order_doc['order_id']}, 
+                order_doc
+            )
+        else:
+            # Insert new order
+            await orders_collection.insert_one(order_doc)
+        
+        return {"status": "success", "message": "Order processed successfully", "order_id": order_doc['order_id']}
+        
+    except Exception as e:
+        print(f"Error processing webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing webhook: {str(e)}")
+
+@app.get("/api/orders")
+async def get_orders(status: Optional[str] = None):
+    """Get all orders or filter by local status"""
+    try:
+        query = {}
+        if status:
+            query['local_status'] = status
+        
+        cursor = orders_collection.find(query).sort('created_at', -1)
+        orders = await cursor.to_list(length=100)
+        
+        # Convert ObjectId to string for JSON serialization
+        for order in orders:
+            order['_id'] = str(order['_id'])
+        
+        return {"orders": orders}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching orders: {str(e)}")
+
+@app.put("/api/orders/{order_id}/status")
+async def update_order_status(order_id: str, status_data: OrderStatus):
+    """Update local order status"""
+    try:
+        valid_statuses = ['new', 'confirmed', 'cancelled', 'not_picked', 'dispatched', 'delivered', 'rto']
+        if status_data.status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+        
+        update_data = {
+            'local_status': status_data.status,
+            'status_updated_at': datetime.now().isoformat()
+        }
+        
+        result = await orders_collection.update_one(
+            {'order_id': order_id},
+            {'$set': update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        return {"status": "success", "message": "Order status updated successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating order status: {str(e)}")
+
+@app.get("/api/orders/stats")
+async def get_order_stats():
+    """Get order statistics by status"""
+    try:
+        pipeline = [
+            {
+                '$group': {
+                    '_id': '$local_status',
+                    'count': {'$sum': 1}
+                }
+            }
+        ]
+        
+        cursor = orders_collection.aggregate(pipeline)
+        stats = await cursor.to_list(length=None)
+        
+        # Convert to dictionary format
+        stats_dict = {stat['_id']: stat['count'] for stat in stats}
+        
+        return {"stats": stats_dict}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching order stats: {str(e)}")
+
+@app.post("/api/orders/demo")
+async def create_demo_order():
+    """Create a demo order for testing"""
+    demo_order = {
+        'id': str(uuid.uuid4()),
+        'order_id': f"demo_{int(datetime.now().timestamp())}",
+        'order_number': f"#DEMO{int(datetime.now().timestamp()) % 10000}",
+        'customer_name': 'John Doe',
+        'phone': '+91 98765 43210',
+        'email': 'john.doe@example.com',
+        'products': [
+            {
+                'id': 'demo_product_1',
+                'title': 'Demo Premium T-Shirt',
+                'variant_title': 'L',
+                'quantity': 2,
+                'price': '999.00',
+                'vendor': 'DEMO STORE'
+            }
+        ],
+        'total_price': '2097.00',
+        'currency': 'INR',
+        'financial_status': 'pending',
+        'fulfillment_status': None,
+        'billing_address': {
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'phone': '+91 98765 43210',
+            'city': 'Mumbai',
+            'province': 'Maharashtra',
+            'country': 'India'
+        },
+        'shipping_address': {
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'phone': '+91 98765 43210',
+            'city': 'Mumbai',
+            'province': 'Maharashtra',
+            'country': 'India'
+        },
+        'created_at': datetime.now().isoformat(),
+        'local_status': 'new',
+        'status_updated_at': None,
+        'notes': ''
+    }
+    
+    await orders_collection.insert_one(demo_order)
+    return {"status": "success", "message": "Demo order created", "order": demo_order}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
