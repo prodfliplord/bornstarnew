@@ -134,7 +134,8 @@ function App() {
   };
 
   const deleteOrder = async (orderId) => {
-    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+    // Use window.confirm for browser compatibility
+    if (!window.confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
       return;
     }
 
@@ -145,10 +146,12 @@ function App() {
       });
 
       if (response.ok) {
+        console.log('Order deleted successfully');
         await fetchOrders();
         await fetchStats();
       } else {
-        console.error('Failed to delete order');
+        const errorData = await response.json().catch(() => null);
+        console.error('Failed to delete order:', errorData);
         alert('Failed to delete order. Please try again.');
       }
     } catch (error) {
