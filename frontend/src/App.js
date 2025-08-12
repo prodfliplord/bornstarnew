@@ -359,7 +359,11 @@ function App() {
                         <span>{statusInfo?.label || 'Unknown'}</span>
                       </div>
                       <button
-                        onClick={() => deleteOrder(order.order_id)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteOrder(order.order_id);
+                        }}
                         disabled={isDeletingThis}
                         className="delete-button"
                         title="Delete Order"
