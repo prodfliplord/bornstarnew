@@ -281,7 +281,7 @@ async def sync_orders():
         
         # Get stats
         pipeline = [
-            {'$match': {'order_number': {'$not': {'$regex': '^#DEMO'}}}},
+            {'$match': {'order_number': {'$not': {'$regex': '^#DEMO\\d+$'}}}},
             {
                 '$group': {
                     '_id': '$local_status',
